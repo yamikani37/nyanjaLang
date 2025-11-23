@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NyanjaLang Web IDE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Dark Mode Palette */
+            --bg-primary: #1e1e1e; /* Main background, darker than editor */
+            --bg-editor: #282c34; /* Editor/Output area background */
+            --bg-accent: #323842; /* Slightly lighter dark for panels or borders */
+            --text-light: #abb2bf; /* Main text color */
+            --text-dark-contrast: #e0e0e0; /* Headings, important text on dark */
+            --border-color: #3e4451; /* Dark borders */
+            
+            /* Syntax Highlighting-like colors (even without actual highlighting) */
+            --syntax-keyword: #c678dd;
+            --syntax-string: #98c379;
+            --syntax-number: #d19a66;
+
+            /* Button Colors */
+            --button-primary: #61afef;
+            --button-hover: #569cd6;
+            --button-disabled: #6c757d;
+
+            /* Status Colors */
+            --error-color: #e06c75;
+            --success-color: #98c379;
+            --info-color: #569cd6; /* For general status messages */
+            
+            /* Fonts */
+            --font-mono: 'Roboto Mono', monospace;
+            --font-sans: 'Roboto', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column; /* Stack header and main content vertically */
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg-primary);
+            color: var(--text-light);
+        }
+
+        /* --- Top Header (Language Name) --- */
+        .header {
+            background-color: var(--bg-accent);
+            padding: 0.8rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            color: var(--text-dark-contrast);
+            font-weight: 700;
+        }
+
+        .header .subtitle {
+            font-size: 0.8em;
+            color: var(--text-light);
+            margin-left: 15px;
+        }
+
+        .main-content-container {
+            display: flex;
+            flex-grow: 1; 
+            overflow: hidden; 
+        }
+
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            padding: 1rem; 
+            background-color: var(--bg-editor); 
+            border-right: 1px solid var(--border-color);
+        }
+        
+        .panel:last-child {
+            border-right: none;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .panel-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--text-dark-contrast);
+        }
+
+        textarea#codeEditor {
+            width: 100%;
+            flex-grow: 1;
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            padding: 0.8rem;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-editor);
+            color: var(--text-light);
+            border-radius: 4px;
+            resize: none;
+            outline: none;
+            line-height: 1.5;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+        }
+        textarea#codeEditor:focus {
+            border-color: var(--button-primary);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2), 0 0 0 2px rgba(97, 175, 239, 0.3);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 0.6rem 1.2rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background-color: var(--button-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: var(--button-hover);
+            transform: translateY(-2px);
+        }
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        button:disabled {
+            background-color: var(--button-disabled);
+            cursor: not-allowed;
+        }
+
+        .output-area {
+            flex-grow: 1;
+            background: var(--bg-editor);
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            border-radius: 4px;
+            line-height: 1.6;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+        }
+        
+        #outputDisplay {
+            color: var(--text-light);
+        }
+        #errorDisplay {
+            color: var(--error-color);
+            font-weight: bold;
+        }
+        #initialMessage {
+            color: var(--info-color);
+        }
+        #editorStatus {
+            color: var(--info-color);
+            font-style: italic;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>NyanjaLang IDE <span class="subtitle">Online Interpreter</span></h1>
+        </div>
+
+    <div class="main-content-container">
+        <div class="panel editor-panel">
+            <div class="panel-header">
+                <h2>Code</h2>
+                <div class="button-group">
+                    <button id="runButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M10.804 8 5 4.633v6.734zm-9.564 1.214-1.214-1.214L11.535 0H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2.465l-6.295-6.295zm-9.564 1.214L11.535 0H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2.465l-6.295-6.295z"/>
+                            <path d="M0 12V4l12 4z"/>
+                        </svg>
+                        Thamangani
+                    </button>
+                    <button id="saveButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M11 2H9v3h2z"/>
+                            <path d="M1.5 0A1.5 1.5 0 0 0 0 1.5v13A1.5 1.5 0 0 0 1.5 16h13a1.5 1.5 0 0 0 1.5-1.5V2.914a1.5 1.5 0 0 0-.44-1.06L14.147.439A1.5 1.5 0 0 0 13.086 0zM1.5 1a.5.5 0 0 1 .5-.5H9.5V1c0 .314.16.634.384.858.224.224.544.384.858.384h2.296c.314 0 .634-.16.858-.384C14.15 1.634 14.31 1.314 14.31 1H14.5a.5.5 0 0 1 .5.5v13a.5.5 0 0 1-.5.5H1.5a.5.5 0 0 1-.5-.5V1.5a.5.5 0 0 1 .5-.5"/>
+                        </svg>
+                        Sungani
+                    </button>
+                </div>
+            </div>
+            <textarea id="codeEditor" name="code" placeholder="Lembani kachidindo apa... (Write code here...)"></textarea>
+            <div id="editorStatus"></div>
+        </div>
+        <div class="panel output-panel">
+            <div class="panel-header">
+                <h2>Zotsatira (Result)</h2>
+            </div>
+            <div class="output-area">
+                <pre id="outputDisplay"></pre>
+                <pre id="errorDisplay"></pre>
+                <p id="initialMessage"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const codeEditor = document.getElementById("codeEditor");
+        const runButton = document.getElementById("runButton");
+        const saveButton = document.getElementById("saveButton");
+        const outputDisplay = document.getElementById("outputDisplay");
+        const errorDisplay = document.getElementById("errorDisplay");
+        const initialMessage = document.getElementById("initialMessage");
+        const editorStatus = document.getElementById("editorStatus");
+
+        const defaultCode = `a = 7;
+b = 10;
+
+ngati a > b {
+    lembani "A ndi yayikulu";
+} zina {
+    lembani "B ndi yayikulu";
+}
+
+nchito hello(dzina) {
+    lembani "Moni, " + dzina + "!";
+}
+
+hello("Kwa Phiri");
+`;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            codeEditor.value = defaultCode;
+            initialMessage.textContent = "Thamangitsani kachidindo pamwambapa. (Run the code above.)";
+            editorStatus.textContent = "Ok";
+        });
+
+        async function executeCode() {
+            outputDisplay.textContent = "";
+            errorDisplay.textContent = "";
+            initialMessage.textContent = "Kuthamanga... (Running...)";
+            runButton.disabled = true;
+            saveButton.disabled = true;
+            editorStatus.textContent = "Kuthamanga kachidindo...";
+
+            const code = codeEditor.value;
+
+            try {
+                const res = await fetch("/run", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ code })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    outputDisplay.textContent = data.output || 'Palibe zotuluka (No output).';
+                    errorDisplay.textContent = '';
+                    initialMessage.textContent = ""; 
+                    editorStatus.textContent = "Kuthamanga kwatha bwino. (Execution finished successfully.)";
+                } else {
+                    outputDisplay.textContent = '';
+                    errorDisplay.textContent = data.errors || `Zolakwika zosadziwika (Unknown error) ${res.status}`;
+                    initialMessage.textContent = "";
+                    editorStatus.textContent = "Kuthamanga kwalephera. (Execution failed.)";
+                }
+            } catch (error) {
+                errorDisplay.textContent = `Vuto lakulumikizana: ${error.message}`;
+                outputDisplay.textContent = '';
+                initialMessage.textContent = "";
+                editorStatus.textContent = "Vuto lakulumikizana. (Connection error.)";
+            } finally {
+                runButton.disabled = false;
+                saveButton.disabled = false;
+            }
+        }
+
+        function saveCode() {
+            const code = codeEditor.value;
+            let filename = prompt("Lowetsani dzina la fayilo (Enter filename, e.g., myprogram.nya):", "myprogram.nya");
+
+            if (!filename) {
+                editorStatus.textContent = "Kusunga kwathetsedwa. (Save cancelled.)";
+                return;
+            }
+            
+            if (!filename.toLowerCase().endsWith(".nya")) {
+                filename += ".nya";
+            }
+
+            try {
+                const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+
+                editorStatus.textContent = `Fayilo '${filename}' yatsitsidwa bwino. (File '${filename}' downloaded successfully.)`;
+
+            } catch (error) {
+                editorStatus.textContent = `Vuto potsitsa fayilo: ${error.message}`;
+            }
+        }
+
+        runButton.addEventListener("click", executeCode);
+        saveButton.addEventListener("click", saveCode);
+
+    </script>
+</body>
+</html>
